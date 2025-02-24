@@ -107,8 +107,8 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
+    HAL_UART_Transmit(&huart1, (uint8_t *)"Hello World!\r\n", 15, 10); // Send "Hello World!" over UART1
+    HAL_Delay(10); // Wait for 1 second
   }
   /* USER CODE END 3 */
 }
