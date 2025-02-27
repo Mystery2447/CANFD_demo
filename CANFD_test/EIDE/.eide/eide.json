@@ -3,7 +3,8 @@
   "type": "ARM",
   "dependenceList": [],
   "srcDirs": [
-    ".eide/deps"
+    ".eide/deps",
+    "../Libs"
   ],
   "virtualFolder": {
     "name": "<virtual_root>",
@@ -204,9 +205,12 @@
           "../Drivers/CMSIS/Include",
           ".cmsis/include",
           "../MDK-ARM/RTE/_CANFD_test",
-          ".eide/deps"
+          ".eide/deps",
+          "../Libs"
         ],
-        "libList": [],
+        "libList": [
+          "../Libs"
+        ],
         "sourceDirList": [],
         "defineList": [
           "USE_HAL_DRIVER",

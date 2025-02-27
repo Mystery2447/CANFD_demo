@@ -46,6 +46,7 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
+extern UART_HandleTypeDef huart1;
 
 /* USER CODE END EM */
 
@@ -59,7 +60,7 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 
 /* USER CODE BEGIN Private defines */
-
+#define CANFD_TXBUFFER(x) FDCAN_TX_BUFFER ## x
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

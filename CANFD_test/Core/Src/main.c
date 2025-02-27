@@ -17,8 +17,10 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+#define USER_MAIN_DEBUG
 #include "main.h"
-
+#include "usart_debug.h"
+#define my_printf(x)  printf(#x"hello\r\n")
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -99,7 +101,26 @@ int main(void)
   MX_FDCAN1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  FDCAN_TxHeaderTypeDef TxHeader;
+  TxHeader.Identifier=0x12;
+  TxHeader.IdType=FDCAN_STANDARD_ID;
+  TxHeader.TxFrameType=FDCAN_DATA_FRAME;
+  TxHeader.DataLength=FDCAN_DLC_BYTES_64;
+  TxHeader.BitRateSwitch=FDCAN_BRS_ON;
+  TxHeader.FDFormat=FDCAN_FD_CAN;
+  TxHeader.ErrorStateIndicator=FDCAN_ESI_ACTIVE;
+  TxHeader.TxEventFifoControl=FDCAN_NO_TX_EVENTS;
+  uint8_t canfd_data[64]={0};
+  uint8_t status=0;
+  for(uint8_t i =0;i<64;i++)
+  {
+    canfd_data[i]=i+1;
+  }
+  if(HAL_FDCAN_Start(&hfdcan1)!=HAL_OK)
+  {
+    user_main_info("FDCAN start fail!\r\n");
+  }
+  status = HAL_FDCAN_AddMessageToTxBuffer(&hfdcan1, &TxHeader, canfd_data, FDCAN_TX_BUFFER10);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -107,8 +128,18 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    HAL_UART_Transmit(&huart1, (uint8_t *)"Hello World!\r\n", 15, 10); // Send "Hello World!" over UART1
-    HAL_Delay(10); // Wait for 1 second
+    
+    if (status != HAL_OK) {
+        user_main_debug("Error adding message to Tx buffer. Status: %d", status);
+    } else {
+        HAL_FDCAN_EnableTxBufferRequest(&hfdcan1, FDCAN_TX_BUFFER10);
+    }
+    
+    // Check the error status
+    uint32_t errorStatus = HAL_FDCAN_GetError(&hfdcan1);
+    user_main_debug("FDCAN Error Status: %x", errorStatus);
+    // user_main_debug_printf("helloworld\r\n");
+    HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
@@ -211,8 +242,8 @@ static void MX_FDCAN1_Init(void)
   hfdcan1.Init.RxBuffersNbr = 0;
   hfdcan1.Init.RxBufferSize = FDCAN_DATA_BYTES_64;
   hfdcan1.Init.TxEventsNbr = 0;
-  hfdcan1.Init.TxBuffersNbr = 32;
-  hfdcan1.Init.TxFifoQueueElmtsNbr = 32;
+  hfdcan1.Init.TxBuffersNbr = 16;
+  hfdcan1.Init.TxFifoQueueElmtsNbr = 16;
   hfdcan1.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
   hfdcan1.Init.TxElmtSize = FDCAN_DATA_BYTES_64;
   if (HAL_FDCAN_Init(&hfdcan1) != HAL_OK)
@@ -293,6 +324,8 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+
 
 /* USER CODE END 4 */
 
