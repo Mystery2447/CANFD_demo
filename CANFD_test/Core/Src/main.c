@@ -21,6 +21,7 @@
 #include "main.h"
 #include "usart_debug.h"
 #define my_printf(x)  printf(#x"hello\r\n")
+#define TX_DBUFFER(x) FDCAN_TX_BUFFER ## x
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -63,7 +64,34 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+typedef struct  
+{
+  uint32_t can_id;
+  uint32_t id_type;   //FDCAN_STANDARD_ID FDCAN_EXTENDED_ID
+  uint32_t frametype; //FDCAN_DATA_FRAME  FDCAN_REMOTE_FRAME
+  uint32_t DLC;       //FDCAN_DLC_BYTES_64 FDCAN_DLC_BYTES_8
+  uint32_t BRS;       //FDCAN_BRS_OFF FDCAN_BRS_ON
+  uint32_t FDFormat;  //FDCAN_CLASSIC_CAN FDCAN_FD_CAN
+  uint8_t *p_data;    //data
+    
+  /* data */
+}CANFD_Message;
 
+HAL_StatusTypeDef Add_CANFD_Message(CANFD_Message msg,uint32_t txbuffer)
+{
+  FDCAN_TxHeaderTypeDef header_tmp;
+  header_tmp.Identifier=msg.can_id;
+  header_tmp.BitRateSwitch=msg.BRS;
+  header_tmp.DataLength=msg.DLC;
+  header_tmp.ErrorStateIndicator=FDCAN_ESI_ACTIVE;
+  header_tmp.FDFormat=msg.FDFormat;
+  header_tmp.IdType=msg.id_type;
+  header_tmp.TxFrameType=msg.frametype;
+  header_tmp.MessageMarker=0;
+  header_tmp.TxEventFifoControl=FDCAN_NO_TX_EVENTS;
+
+return HAL_FDCAN_AddMessageToTxBuffer(&hfdcan1,&header_tmp,msg.p_data,txbuffer);
+}
 /* USER CODE END 0 */
 
 /**
@@ -110,17 +138,36 @@ int main(void)
   TxHeader.FDFormat=FDCAN_FD_CAN;
   TxHeader.ErrorStateIndicator=FDCAN_ESI_ACTIVE;
   TxHeader.TxEventFifoControl=FDCAN_NO_TX_EVENTS;
-  uint8_t canfd_data[64]={0};
   uint8_t status=0;
-  for(uint8_t i =0;i<64;i++)
-  {
-    canfd_data[i]=i+1;
-  }
+  uint8_t HCU_FD1_data[64]={0, 0, 0, 0, 0, 0, 0, 0, 83, 0, 4, 176, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 172, 0, 0, 0, 0, 40, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 48, 48, 48, 48, 48, 48, 48, 48};
+  uint8_t PEPS2_data[8]={0, 0xa0, 0, 0, 0, 0, 0, 0};
+  CANFD_Message HCU_FD1;
+  HCU_FD1.can_id=0x60;
+  HCU_FD1.BRS=FDCAN_BRS_ON;
+  HCU_FD1.DLC=FDCAN_DLC_BYTES_64;
+  HCU_FD1.FDFormat=FDCAN_FD_CAN;
+  HCU_FD1.frametype=FDCAN_DATA_FRAME;
+  HCU_FD1.id_type=FDCAN_STANDARD_ID;
+  HCU_FD1.p_data=HCU_FD1_data;
+
+  CANFD_Message PEPS2;
+  PEPS2.can_id=0x295;
+  PEPS2.BRS=FDCAN_BRS_OFF;
+  PEPS2.DLC=FDCAN_DLC_BYTES_8;
+  PEPS2.FDFormat=FDCAN_CLASSIC_CAN;
+  PEPS2.frametype=FDCAN_DATA_FRAME;
+  PEPS2.id_type=FDCAN_STANDARD_ID;
+  PEPS2.p_data=PEPS2_data;
+  
+  Add_CANFD_Message(HCU_FD1,FDCAN_TX_BUFFER1);
+  Add_CANFD_Message(PEPS2,FDCAN_TX_BUFFER2);
   if(HAL_FDCAN_Start(&hfdcan1)!=HAL_OK)
   {
     user_main_info("FDCAN start fail!\r\n");
   }
-  status = HAL_FDCAN_AddMessageToTxBuffer(&hfdcan1, &TxHeader, canfd_data, FDCAN_TX_BUFFER10);
+
+  uint8_t cnt=0;
+  // status = HAL_FDCAN_AddMessageToTxBuffer(&hfdcan1, &TxHeader, canfd_data, FDCAN_TX_BUFFER10);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -132,14 +179,22 @@ int main(void)
     if (status != HAL_OK) {
         user_main_debug("Error adding message to Tx buffer. Status: %d", status);
     } else {
-        HAL_FDCAN_EnableTxBufferRequest(&hfdcan1, FDCAN_TX_BUFFER10);
+        // HAL_FDCAN_EnableTxBufferRequest(&hfdcan1, FDCAN_TX_BUFFER10);
+        HAL_FDCAN_EnableTxBufferRequest(&hfdcan1, FDCAN_TX_BUFFER1);
     }
     
     // Check the error status
     uint32_t errorStatus = HAL_FDCAN_GetError(&hfdcan1);
     user_main_debug("FDCAN Error Status: %x", errorStatus);
     // user_main_debug_printf("helloworld\r\n");
-    HAL_Delay(100);
+    cnt++;
+    HAL_Delay(10);
+
+    if(cnt>=5)
+    {
+      cnt=0;
+      HAL_FDCAN_EnableTxBufferRequest(&hfdcan1, FDCAN_TX_BUFFER2);
+    }
   }
   /* USER CODE END 3 */
 }
