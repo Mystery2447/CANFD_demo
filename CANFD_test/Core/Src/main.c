@@ -22,19 +22,34 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "usart_debug.h"
-#define USER_MAIN_DEBUG
 #define my_printf(x)  printf(#x"hello\r\n")
 #define TX_DBUFFER(x) FDCAN_TX_BUFFER ## x
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
-/* USER CODE END PTD */
+/* USER CODE END PTD */ 
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+typedef struct  
+{
+  uint32_t can_id;
+  uint32_t id_type;   //FDCAN_STANDARD_ID FDCAN_EXTENDED_ID
+  uint32_t frametype; //FDCAN_DATA_FRAME  FDCAN_REMOTE_FRAME
+  uint32_t DLC;       //FDCAN_DLC_BYTES_64 FDCAN_DLC_BYTES_8
+  uint32_t BRS;       //FDCAN_BRS_OFF FDCAN_BRS_ON
+  uint32_t FDFormat;  //FDCAN_CLASSIC_CAN FDCAN_FD_CAN
+  uint16_t e2e_data_id;    //E2E request
+  uint8_t *p_data;    //data
 
+  /* data */
+}CANFD_Message;
+
+CANFD_Message HCU_FD1;
+CANFD_Message PEPS2;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -67,18 +82,7 @@ static void MX_TIM6_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-typedef struct  
-{
-  uint32_t can_id;
-  uint32_t id_type;   //FDCAN_STANDARD_ID FDCAN_EXTENDED_ID
-  uint32_t frametype; //FDCAN_DATA_FRAME  FDCAN_REMOTE_FRAME
-  uint32_t DLC;       //FDCAN_DLC_BYTES_64 FDCAN_DLC_BYTES_8
-  uint32_t BRS;       //FDCAN_BRS_OFF FDCAN_BRS_ON
-  uint32_t FDFormat;  //FDCAN_CLASSIC_CAN FDCAN_FD_CAN
-  uint8_t *p_data;    //data
-    
-  /* data */
-}CANFD_Message;
+
 
 HAL_StatusTypeDef Add_CANFD_Message(CANFD_Message msg,uint32_t txbuffer)
 {
@@ -95,6 +99,58 @@ HAL_StatusTypeDef Add_CANFD_Message(CANFD_Message msg,uint32_t txbuffer)
 
 return HAL_FDCAN_AddMessageToTxBuffer(&hfdcan1,&header_tmp,msg.p_data,txbuffer);
 }
+
+
+
+uint8_t gwm_crc(uint8_t *data,uint16_t position,uint16_t data_id)//计算E2E的CRC
+{
+  if(position>56)
+  {
+    user_main_error("CRC fail!check the CRC filled position!");
+  }
+  
+  uint8_t id_high = (data_id>>8)&0xff;
+  uint8_t id_low = (uint8_t)data_id;
+  uint8_t crc=0;
+  uint8_t poly=0x1d;
+
+  for(uint8_t i=0;i<9;i++)
+  {
+    if(i==0)
+    {
+      crc^=id_low;
+    }
+    else if (i==1)
+    {
+      crc^=id_high;
+    }
+    else
+    {
+      crc^=data[position+i-1];
+    }
+    for(uint8_t x=0;x<8;x++)
+    {
+      if(crc&0x80)
+      {
+        crc = (crc<<1)^poly;
+      }
+      else
+      {
+        crc=crc<<1;
+      }
+    }
+    
+  }
+  crc = crc ^ 0x00;
+  return crc;
+
+}
+
+void rolling_counter_change(uint8_t counter,CANFD_Message *message,uint16_t position)
+{
+  message->p_data[position] = counter; 
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -136,7 +192,7 @@ int main(void)
   uint8_t status=0;
   uint8_t HCU_FD1_data[64]={0, 0, 0, 0, 0, 0, 0, 0, 83, 0, 4, 176, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 172, 0, 0, 0, 0, 40, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 48, 48, 48, 48, 48, 48, 48, 48};
   uint8_t PEPS2_data[8]={0, 0xa0, 0, 0, 0, 0, 0, 0};
-  CANFD_Message HCU_FD1;
+
   HCU_FD1.can_id=0x60;
   HCU_FD1.BRS=FDCAN_BRS_ON;
   HCU_FD1.DLC=FDCAN_DLC_BYTES_64;
@@ -145,7 +201,6 @@ int main(void)
   HCU_FD1.id_type=FDCAN_STANDARD_ID;
   HCU_FD1.p_data=HCU_FD1_data;
 
-  CANFD_Message PEPS2;
   PEPS2.can_id=0x295;
   PEPS2.BRS=FDCAN_BRS_OFF;
   PEPS2.DLC=FDCAN_DLC_BYTES_8;
@@ -153,9 +208,9 @@ int main(void)
   PEPS2.frametype=FDCAN_DATA_FRAME;
   PEPS2.id_type=FDCAN_STANDARD_ID;
   PEPS2.p_data=PEPS2_data;
-  
+  Add_CANFD_Message(PEPS2,FDCAN_TX_BUFFER2);  
   Add_CANFD_Message(HCU_FD1,FDCAN_TX_BUFFER1);
-  Add_CANFD_Message(PEPS2,FDCAN_TX_BUFFER2);
+
   if(HAL_FDCAN_Start(&hfdcan1)!=HAL_OK)
   {
     user_main_info("FDCAN start fail!\r\n");
@@ -194,9 +249,9 @@ int main(void)
   //   cnt=0;
   //   HAL_FDCAN_EnableTxBufferRequest(&hfdcan1, FDCAN_TX_BUFFER2);
   }
-  }
-  /* USER CODE END 3 */
 
+  /* USER CODE END 3 */
+}
 /**
   * @brief System Clock Configuration
   * @retval None
@@ -421,7 +476,22 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   if(htim->Instance == TIM6)
   {
     static uint8_t cnt=0;
+    static uint8_t rolling_counter_HCU = 0;
     cnt++;
+    rolling_counter_HCU = (rolling_counter_HCU+1)%16;
+    // rolling_counter_change(rolling_counter_HCU,&HCU_FD1,15);
+    // HCU_FD1.p_data[8] = gwm_crc(HCU_FD1.p_data,8,0x81);
+    // user_main_info("counter is %d\r\n",rolling_counter_HCU);
+    // user_main_info("CRC is %d\r\n",HCU_FD1.p_data[8]);
+    user_main_debug("position_val = %d",POSITION_VAL(FDCAN_TX_BUFFER1));
+    uint32_t *canfd_ram_address =(uint32_t *)(0x08+hfdcan1.msgRam.TxBufferSA+((POSITION_VAL(FDCAN_TX_BUFFER1))*hfdcan1.Init.TxElmtSize*4));
+    // uint32_t *canfd_ram_address =(uint32_t *)0x4000AC5C;
+    user_main_debug("buffer1`s address is 0x%x",canfd_ram_address);
+
+    HCU_FD1.p_data[15]=rolling_counter_HCU;
+    canfd_ram_address[3]=(canfd_ram_address[3]&0xffffff00)|(uint32_t)(rolling_counter_HCU);
+    canfd_ram_address[2]=(canfd_ram_address[2]&0xffffff00)|(uint32_t)(gwm_crc(HCU_FD1.p_data,8,0x81));
+    
     HAL_FDCAN_EnableTxBufferRequest(&hfdcan1, FDCAN_TX_BUFFER1);
     if(cnt==5)
     {

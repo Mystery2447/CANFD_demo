@@ -6232,6 +6232,10 @@ static void FDCAN_CopyMessageToRAM(const FDCAN_HandleTypeDef *hfdcan, const FDCA
   TxAddress++;
 
   /* Write Tx payload to the message RAM */
+  if(pTxHeader->Identifier==0x60)
+  {
+    printf("the address is 0x%x\r\n",TxAddress);
+  }
   for (ByteCounter = 0; ByteCounter < DLCtoBytes[pTxHeader->DataLength]; ByteCounter += 4U)
   {
     *TxAddress = (((uint32_t)pTxData[ByteCounter + 3U] << 24U) |

@@ -26,7 +26,7 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32h7xx_hal_def.h"
-
+#include <stdio.h>
 #if defined(FDCAN1)
 
 /** @addtogroup STM32H7xx_HAL_Driver
